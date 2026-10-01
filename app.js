@@ -1,7 +1,7 @@
 /* 4분 체육관 — 화면 로직. 등급 계산식은 pipeline/build.py 와 같다 */
 const COLORS = {A:'#1b9e5a', B:'#6cc24a', C:'#f2a007', D:'#d62828'};
 const DOW = ['월','화','수','목','금','토','일','공휴일'];
-let P, SCHED = [], FAC = [], SUMMARY, PLACE, markers = [], filt = 'all', selected = null;
+let P, SCHED = [], FAC = [], SUMMARY, PLACE, HEAT = null, markers = [], filt = 'all', selected = null;
 
 const map = L.map('map', {preferCanvas:true, zoomControl:true}).setView([36.35, 127.8], 7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
@@ -25,6 +25,17 @@ function gradeAt(f, dow, minute){
   return {g:'D', d:null};
 }
 
+const HCOL = s => s >= .5 ? '#b2182b' : s >= .25 ? '#ef6c00' : s >= .1 ? '#f6c344' : '#e8eef3';
+function heatShare(f, hr){ if (!HEAT || !f.hs) return null; const st = HEAT[f.hs[0]]; return st.hh[hr] / Math.max(st.days, 1); }
+function heatStrip(f){ let h = ''; for (let hr = 0; hr < 24; hr++){ const s = heatShare(f, hr); h += `<i style="background:${HCOL(s)}" title="${hr}시 — 체감 33℃ 이상인 날 ${Math.round(s*100)}%"></i>`; }
+  return `<div class="timeline">${h}</div><div class="tl-axis"><span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>24시</span></div>`; }
+function heatWindows(f, dow){ const safe = [], dbl = [];
+  for (let hr = 6; hr <= 22; hr++){ const s = heatShare(f, hr), g = gradeAt(f, dow, hr*60).g;
+    if (s >= .25 && 'CD'.includes(g)) dbl.push(hr); else if (s < .1 && 'AB'.includes(g)) safe.push(hr); }
+  return {safe, dbl}; }
+const hrs = a => { if (!a.length) return '없음'; const r = []; let s = a[0], p = a[0];
+  for (const x of a.slice(1).concat([null])){ if (x === p + 1){ p = x; continue; } r.push(s === p ? `${s}시` : `${s}~${p+1}시`); s = p = x; } return r.join(', '); };
+
 function curTime(){ return {dow:+$('#dow').value, minute:+$('#hour').value*60}; }
 
 function passes(f){
@@ -39,17 +50,18 @@ function passes(f){
 }
 
 function recolor(){
-  const {dow, minute} = curTime(); const cnt = {A:0,B:0,C:0,D:0}; let n = 0;
+  const {dow, minute} = curTime(); const cnt = {A:0,B:0,C:0,D:0}; let n = 0, nd = 0;
   FAC.forEach((f, i) => { const r = gradeAt(f, dow, minute); f._g = r.g; });
   FAC.forEach((f, i) => {
     const m = markers[i], show = passes(f);
-    if (show){ cnt[f._g]++; n++; m.setStyle({fillColor:COLORS[f._g], color:COLORS[f._g], opacity:.9, fillOpacity:.85}); if (!map.hasLayer(m)) m.addTo(map); }
+    if (show){ cnt[f._g]++; n++; const hs = filt === 'outdoor' ? heatShare(f, minute/60) : null, dbl = hs != null && hs >= .25 && 'CD'.includes(f._g); if (dbl) nd++;
+      m.setStyle({fillColor:COLORS[f._g], color:dbl ? '#111' : COLORS[f._g], weight:dbl ? 2.5 : 1, opacity:.9, fillOpacity:.85}); if (!map.hasLayer(m)) m.addTo(map); }
     else if (map.hasLayer(m)) map.removeLayer(m);
   });
   const ok = cnt.A + cnt.B;
   $('#kpiPct').textContent = n ? Math.round(ok / n * 100) + '%' : '–';
   $('#gradeBar').innerHTML = 'ABCD'.split('').map(g => `<i style="width:${n?cnt[g]/n*100:0}%;background:${COLORS[g]}" title="${g} ${cnt[g].toLocaleString()}곳"></i>`).join('');
-  $('.kpi .big span').textContent = `${DOW[dow]}요일 ${String(minute/60).padStart(2,'0')}:00, 4분 안에 AED가 닿는 체육시설 (${ok.toLocaleString()} / ${n.toLocaleString()}곳)`;
+  $('.kpi .big span').textContent = `${DOW[dow]}요일 ${String(minute/60).padStart(2,'0')}:00, 4분 안에 AED가 닿는 체육시설 (${ok.toLocaleString()} / ${n.toLocaleString()}곳)` + (filt === 'outdoor' && HEAT ? ` · 이 시각 「폭염 잦음 + 4분 밖」 ${nd.toLocaleString()}곳(검은 테두리)` : '');
   if (selected !== null) showCard(selected);
 }
 
@@ -74,7 +86,12 @@ function showCard(i){
     `<span class="badge">공단 안전점검 · ${f.gb==='공공'?'공공체육시설':'체육시설업('+(f.gb||'')+')'}</span>`,
     (f.io==='실외'||f.io==='실내외') ? '<span class="badge warn">☀ 실외 — 폭염 주의 대상</span>' : '',
     f.seat>0 ? `<span class="badge hot">🏟 관람석 ${f.seat.toLocaleString()}명</span>` : ''].join('');
-  const heat = f.heat ? (()=>{ const [t, at] = f.heat; const lv = t>=38?['폭염중대경보 수준 — 야외 운동 중지 권고','hot']:t>=35?['폭염경보 수준','hot']:t>=33?['폭염주의보 수준','warn']:['폭염 기준 미만','']; return `<dt>오늘 최고 체감</dt><dd><span class="badge ${lv[1]}">${t}℃ · ${at.slice(9,11)}시</span> ${lv[0]}</dd>`; })() : ((f.io==='실외'||f.io==='실내외') ? '<dt>폭염</dt><dd>실외 시설 — 운동장 온열질환자의 34.4%가 19세 이하(질병청 2011~2025)</dd>' : '');
+  const hb = (HEAT && f.hs) ? (()=>{ const st = HEAT[f.hs[0]], w = heatWindows(f, dow);
+    return `<b>2026년 여름 폭염 시간표 (7~8월, 기상청 ${st.nm} 관측소 ${f.hs[1]}km)</b>${heatStrip(f)}
+    <p class="note">칸 색 = 그 시각 체감온도 33℃ 이상이었던 날의 비율(진할수록 잦음). ${st.days}일 중 체감 33℃ 이상 ${st.d33}일 · 35℃ 이상 ${st.d35}일 · 38℃ 이상 ${st.d38}일, 최고 ${st.mx}℃(${st.mxat.slice(5,13).replace('-','/')}시)</p>
+    <dl class="kv"><dt>안전 운동 시간</dt><dd><span class="badge">${hrs(w.safe)}</span> 폭염이 드물고 4분 안 제세동 가능 (${DOW[dow]}요일)</dd>
+    <dt>이중 위험 시간</dt><dd><span class="badge ${w.dbl.length?'hot':''}">${hrs(w.dbl)}</span> 폭염이 잦은데 AED가 4분 밖</dd></dl>`; })() : '';
+  const heat = f.heat ? (()=>{ const [t, at] = f.heat; const lv = t>=38?['폭염중대경보 수준 — 야외 운동 중지 권고','hot']:t>=35?['폭염경보 수준','hot']:t>=33?['폭염주의보 수준','warn']:['폭염 기준 미만','']; return `<dt>오늘 최고 체감</dt><dd><span class="badge ${lv[1]}">${t}℃ · ${at.slice(9,11)}시</span> ${lv[0]}</dd>`; })() : ((f.io==='실외'||f.io==='실내외') && !hb ? '<dt>폭염</dt><dd>실외 시설 — 운동장 온열질환자의 34.4%가 19세 이하(질병청 2011~2025)</dd>' : '');
   const defect = (f.defect||[]).map(d => `<div class="defect"><b>${d.t}</b> · ${d.d}<br>${d.s}${d.img?`<img loading="lazy" src="${d.img}" alt="결함사진">`:''}</div>`).join('');
   $('#tab-card').innerHTML = `<div class="card">
     <h2>${f.nm}</h2><div class="sub">${f.type||''} · ${f.addr||''}</div>${badges}
@@ -88,6 +105,7 @@ function showCard(i){
       ${heat}
       <dt>주변 정류장</dt><dd>${f.bus??'–'}곳 (반경 ${P.bus_radius}m)</dd>
     </dl>
+    ${hb}
     <b>가까운 AED</b><ul class="aedlist">${aed}</ul>${defect?'<b>공단 안전점검 결함</b>'+defect:''}</div>`;
   activate('card');
 }
@@ -105,18 +123,29 @@ function placeTab(){
   $('#tab-place').innerHTML = `<p>야간 C·D 시설 <b>${PLACE.bad_total.toLocaleString()}곳</b> 중, AED를 한 대씩 어디에 두면 4분 안에 드는 시설이 가장 많이 늘어나는지 계산했습니다(반경 ${PLACE.radius_m}m). 상위 ${PLACE.picks.length}대로 <b>${last.cum.toLocaleString()}곳</b>이 4분 안에 들어옵니다.</p><table><tr><th>#</th><th>설치 위치</th><th class="num">이득</th><th class="num">누적</th></tr>${top}</table>`;
   document.querySelectorAll('#tab-place tr[data-lat]').forEach(tr => tr.onclick = () => map.setView([+tr.dataset.lat, +tr.dataset.lon], 17));
 }
+function heatTab(){
+  const H = SUMMARY.heat; if (!H){ $('#tab-heat').innerHTML = '<p>폭염 관측 자료 없음</p>'; return; }
+  const mx = Math.max(...H.nat_hh); const bars = H.nat_hh.map((s, h) => `<i style="height:${Math.max(2, s/mx*100)}%;background:${HCOL(s)}" title="${h}시 ${Math.round(s*100)}%"></i>`).join('');
+  const top = H.top_d33.map((r, i) => `<tr><td>${i+1}</td><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}℃</td></tr>`).join('');
+  $('#tab-heat').innerHTML = `<p>2026년 7~8월 기상청 관측소 ${H.stations}곳의 시간별 기온·습도로 <b>체감온도</b>(기상청 여름철 산식)를 계산해, 실외 체육시설 <b>${H.outdoor.toLocaleString()}곳</b>에 가장 가까운 관측소를 붙였습니다.</p>
+  <p>폭염이 잦은 시간(그 시각 체감 33℃ 이상인 날이 25% 이상)에 AED까지 4분이 넘는 실외 시설이 <b>${H.dbl_facilities.toLocaleString()}곳</b>입니다(수요일 6~22시 기준). 「☀ 실외(폭염)」을 누르고 시각을 옮기면 검은 테두리로 보입니다.</p>
+  <b>전국 시각별 체감 33℃ 이상 비율 (최고 ${Math.round(mx*100)}% · ${H.nat_hh.indexOf(mx)}시)</b><div class="hbars">${bars}</div><div class="tl-axis"><span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>24시</span></div>
+  <table><tr><th>#</th><th>관측소</th><th class="num">33℃↑</th><th class="num">35℃↑</th><th class="num">38℃↑</th><th class="num">최고</th></tr>${top}</table>
+  <p class="note">일수 = 하루 최고 체감온도 기준. 38℃는 2026년 신설 폭염중대경보 기준.</p>`;
+}
 function aboutTab(){
   $('#tab-about').innerHTML = `<p><b>E-Grade(응급대응 등급)</b>는 체육시설에서 사람이 쓰러졌을 때 <b>제세동까지 걸리는 시간</b>으로 매깁니다.</p>
   <p>제세동 시간 = 인지·119신고 ${P.t_recog}초 + AED 왕복(거리×${P.detour}÷${P.walk_mps}m/s) + 패드 부착 ${P.t_apply}초. 4분(240초) 안이면 B 이상입니다.</p>
   <p>AED는 <b>요일·시각별 사용 가능 시간</b>을 반영합니다. 잠긴 건물 안 AED는 그 시각에 없는 것으로 봅니다.</p>
   <p>119 도착은 가장 가까운 119안전센터까지의 거리로 추정한 참고값입니다(심정지 골든타임 4분 안 구급대 도착 비율은 전국 1.7% — 권혜지·신영전 2025).</p>
-  <p class="note">데이터: 국민체육진흥공단 전국체육시설 안전점검 정보·공공체육시설 상세·결함사진 학습데이터, 국립중앙의료원 AED, 소방청 119안전센터 좌표, 국토교통부 버스정류장, 행정안전부 체육시설업 인허가. 빌드 ${SUMMARY.built}</p>`;
+  <p class="note">데이터: 국민체육진흥공단 전국체육시설 안전점검 정보·공공체육시설 상세·결함사진 학습데이터, 국립중앙의료원 AED, 소방청 119안전센터 좌표, 기상청 지상(종관) 시간자료·관측지점정보, 국토교통부 버스정류장, 행정안전부 체육시설업 인허가. 빌드 ${SUMMARY.built}</p>`;
 }
 
 async function init(){
   SUMMARY = await (await fetch('data/summary.json')).json();
   P = SUMMARY.log.params; SCHED = await (await fetch('data/schedules.json')).json();
   try { PLACE = await (await fetch('data/placement.json')).json(); } catch(e){}
+  if (SUMMARY.heat) try { HEAT = await (await fetch('data/heat.json')).json(); } catch(e){}
   const sidos = Object.keys(SUMMARY.sido).sort((a,b)=>SUMMARY.sido[b].n-SUMMARY.sido[a].n);
   $('#sido').innerHTML += sidos.map(s => `<option>${s}</option>`).join('');
   let PARTS = null; try { const r = await fetch('data/parts.json'); if (r.ok) PARTS = await r.json(); } catch(e){}
@@ -131,7 +160,7 @@ async function init(){
   $('#dataNote').textContent = `체육시설 ${FAC.length.toLocaleString()}곳 · AED ${SUMMARY.log.aed.toLocaleString()}대 · 119안전센터 ${SUMMARY.log.centers.toLocaleString()}곳 결합 (빌드 ${SUMMARY.built})`;
   if (SUMMARY.log.mock) document.body.insertAdjacentHTML('afterbegin','<div style="background:#111;color:#ffd24d;padding:6px 16px;font-size:13px">개발용 가상 데이터로 그린 화면입니다 — 실데이터 결합 전</div>');
   $('#dataNote').insertAdjacentHTML('beforeend', `<br>낮(수 14시)엔 4분 안인데 밤(수 21시)엔 벗어나는 시설 <b>${SUMMARY.night_drop.toLocaleString()}곳</b> — AED가 잠긴 건물 안에 있기 때문입니다.`);
-  rankTab(); placeTab(); aboutTab(); recolor();
+  rankTab(); placeTab(); heatTab(); aboutTab(); recolor();
 }
 
 $('#hour').oninput = e => { $('#hourLabel').textContent = String(e.target.value).padStart(2,'0') + ':00'; recolor(); };

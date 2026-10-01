@@ -56,3 +56,4 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 @media (max-width:800px){.wrap{grid-template-columns:1fr;grid-template-rows:55vh auto;height:auto}#map{height:55vh;order:-1}.panel{border-right:0}.slider input{width:120px}}
 
 .aedpin{background:none;border:0}.aedpin div{transform:translate(-50%,-50%)}
+.hbars{display:grid;grid-template-columns:repeat(24,1fr);gap:1px;align-items:end;height:70px;margin:6px 0 2px;border-bottom:1px solid var(--line)}.hbars i{display:block;border-radius:2px 2px 0 0}
