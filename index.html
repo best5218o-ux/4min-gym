@@ -1,3 +1,62 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>4분 체육관</title>
-<style>body{font-family:system-ui,'Noto Sans KR',sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#f5f6f8;color:#141821}div{text-align:center;padding:24px}b{display:inline-grid;place-items:center;width:64px;height:64px;border-radius:16px;background:#d62828;color:#fff;font-size:30px;font-weight:900}h1{margin:12px 0 4px}p{color:#5b6472}</style></head>
-<body><div><b>4′</b><h1>4분 체육관</h1><p>운동하다 쓰러지면, 4분 안에 AED가 닿는가<br>전국 체육시설 심장안전 등급 지도 — 데이터 결합 중입니다.</p><p style="font-size:12px">팀 SAVE_KOREA</p></div></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4분 체육관 — 체육시설 심장안전 지도</title>
+<meta name="description" content="운동하다 쓰러지면 4분 안에 AED가 닿는가. 국민체육진흥공단 체육시설 안전점검 데이터와 전국 AED·119안전센터를 결합한 체육시설 심장안전 등급(E-Grade) 지도">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">4′</span><div><h1>4분 체육관</h1><p>운동하다 쓰러지면, 4분 안에 AED가 닿는가</p></div></div>
+  <div class="when">
+    <label>요일 <select id="dow"><option value="0">월</option><option value="1">화</option><option value="2" selected>수</option><option value="3">목</option><option value="4">금</option><option value="5">토</option><option value="6">일</option><option value="7">공휴일</option></select></label>
+    <label class="slider">시각 <input id="hour" type="range" min="0" max="23" step="1" value="21"><b id="hourLabel">21:00</b></label>
+    <button id="nowBtn" title="지금 시각으로">지금</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <aside class="panel" id="panel">
+    <section class="kpi">
+      <div class="big"><b id="kpiPct">–</b><span>이 시각 4분 안에 AED가 닿는 체육시설</span></div>
+      <div class="bar" id="gradeBar"></div>
+      <ul class="legend">
+        <li><i class="g A"></i>A 시설 안 AED(편도 30초)</li>
+        <li><i class="g B"></i>B 4분 안 제세동 가능</li>
+        <li><i class="g C"></i>C 6분 안</li>
+        <li><i class="g D"></i>D 닿지 않음·잠김</li>
+      </ul>
+      <p class="note" id="dataNote"></p>
+    </section>
+
+    <section class="filters">
+      <div class="row"><select id="sido"><option value="">전국</option></select><input id="q" placeholder="시설명·주소 검색"></div>
+      <div class="chips" id="chips">
+        <button data-f="all" class="on">전체</button>
+        <button data-f="public">공공</button>
+        <button data-f="private">민간</button>
+        <button data-f="outdoor">☀ 실외(폭염)</button>
+        <button data-f="seat">🏟 관람석(인파)</button>
+        <button data-f="bad">C·D만</button>
+      </div>
+    </section>
+
+    <section class="tabs">
+      <nav><button data-t="card" class="on">시설</button><button data-t="rank">시군구 순위</button><button data-t="place">AED 1대 어디에</button><button data-t="about">방법</button></nav>
+      <div id="tab-card" class="tab on"><p class="hint">지도에서 시설을 누르세요.</p></div>
+      <div id="tab-rank" class="tab"></div>
+      <div id="tab-place" class="tab"></div>
+      <div id="tab-about" class="tab"></div>
+    </section>
+  </aside>
+  <div id="map"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
