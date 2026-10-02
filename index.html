@@ -8,14 +8,22 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d62828'/%3E%3Ctext x='32' y='45' font-size='34' font-weight='900' text-anchor='middle' fill='white' font-family='sans-serif'%3E4%E2%80%B2%3C/text%3E%3C/svg%3E">
+<meta property="og:title" content="4분 체육관 — 운동하다 쓰러지면, 4분 안에 AED가 닿는가">
+<meta property="og:description" content="전국 체육시설 55,159곳의 요일·시각별 심장안전 등급(E-Grade)과 여름 폭염 시간표. 국민체육진흥공단 공공데이터 활용.">
+<meta property="og:type" content="website"><meta property="og:url" content="https://best5218o-ux.github.io/4min-gym/">
+<meta name="theme-color" content="#d62828">
+<style>#loading{position:fixed;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.82);z-index:2000;font:600 15px 'Noto Sans KR',sans-serif;color:#141821;text-align:center}#loading i{display:block;width:38px;height:38px;margin:0 auto 12px;border:4px solid #e3e6ea;border-top-color:#d62828;border-radius:50%;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}.sharebtn{font:inherit;font-size:12.5px;margin:6px 0 10px;padding:5px 10px;border:1px solid #e3e6ea;border-radius:8px;background:#fff;cursor:pointer}</style>
 </head>
 <body>
+<div id="loading"><div><i></i>전국 체육시설 55,159곳과 AED 63,411대를<br>불러오고 있습니다…</div></div>
 <header class="top">
   <div class="brand"><span class="mark">4′</span><div><h1>4분 체육관</h1><p>운동하다 쓰러지면, 4분 안에 AED가 닿는가</p></div></div>
   <div class="when">
     <label>요일 <select id="dow"><option value="0">월</option><option value="1">화</option><option value="2" selected>수</option><option value="3">목</option><option value="4">금</option><option value="5">토</option><option value="6">일</option><option value="7">공휴일</option></select></label>
     <label class="slider">시각 <input id="hour" type="range" min="0" max="23" step="1" value="21"><b id="hourLabel">21:00</b></label>
     <button id="nowBtn" title="지금 시각으로">지금</button>
+    <button id="locBtn" title="내 주변 체육시설">📍 내 주변</button>
   </div>
 </header>
 
@@ -60,5 +68,31 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>(function(){const S=new Set(["facilities_부산_1.json", "facilities_서울_0.json", "facilities_서울_1.json", "facilities_서울_2.json", "facilities_서울_3.json", "facilities_세종.json", "facilities_울산.json", "facilities_인천_0.json", "facilities_인천_1.json", "facilities_전남_0.json", "facilities_전남_1.json", "facilities_전북.json", "facilities_제주.json", "facilities_충남.json", "facilities_충북.json", "heat.json", "summary.json"]);const f=window.fetch.bind(window);window.fetch=(u,o)=>{if(typeof u==="string"&&u.startsWith("data/")&&S.has(u.slice(5)))u="data/"+u;return f(u,o)}})()</script>
 <script src="app.js"></script>
+<script>
+(function(){
+const _sc = showCard;
+showCard = function(i){ _sc(i); const f = FAC[i];
+  const h = document.querySelector('#tab-card .card .sub'); if (h && !document.getElementById('shareBtn')) h.insertAdjacentHTML('afterend', '<button id="shareBtn" class="sharebtn">🔗 이 시설 링크 복사</button>');
+  const b = document.getElementById('shareBtn'); if (b) b.onclick = shareCard;
+  try { history.replaceState(null, '', '#' + encodeURIComponent(f.nm + '@' + f.lat.toFixed(4))); } catch(e){}
+  if (window.innerWidth < 800 && window.__last !== i) document.getElementById('tab-card').scrollIntoView({behavior:'smooth', block:'start'});
+  window.__last = i;
+};
+function shareCard(){ const u = location.href; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => { const b = document.getElementById('shareBtn'); if (b){ b.textContent = '링크를 복사했습니다'; setTimeout(() => b.textContent = '🔗 이 시설 링크 복사', 1800); } }).catch(() => prompt('이 주소를 복사하세요', u)); }
+function openFromHash(){ const h = decodeURIComponent((location.hash || '').slice(1)); if (!h) return;
+  const k = h.lastIndexOf('@'), nm = k > 0 ? h.slice(0, k) : h, lat = k > 0 ? +h.slice(k + 1) : null;
+  const i = FAC.findIndex(f => f.nm === nm && (lat == null || Math.abs(f.lat - lat) < 0.0002)); if (i < 0) return;
+  showCard(i); map.setView([FAC[i].lat, FAC[i].lon], 16); }
+function locateMe(){ if (!navigator.geolocation){ alert('이 기기에서는 위치를 확인할 수 없습니다'); return; }
+  navigator.geolocation.getCurrentPosition(p => { const la = p.coords.latitude, lo = p.coords.longitude; let best = -1, bd = 1e9;
+    FAC.forEach((f, i) => { const d = (f.lat - la) ** 2 + ((f.lon - lo) * Math.cos(la * Math.PI / 180)) ** 2; if (d < bd){ bd = d; best = i; } });
+    map.setView([la, lo], 15); L.circleMarker([la, lo], {radius:7, color:'#1565c0', weight:3, fillColor:'#42a5f5', fillOpacity:1}).addTo(map).bindTooltip('내 위치').openTooltip();
+    if (best >= 0) showCard(best); }, () => alert('위치 권한이 없어 내 주변을 보여 드릴 수 없습니다'), {enableHighAccuracy:true, timeout:10000}); }
+document.getElementById('locBtn').onclick = locateMe;
+window.addEventListener('hashchange', () => { if (FAC.length) openFromHash(); });
+const t = setInterval(() => { if (typeof FAC !== 'undefined' && FAC.length && document.querySelector('#tab-about').innerHTML){ clearInterval(t); const ld = document.getElementById('loading'); if (ld) ld.remove(); openFromHash(); } }, 300);
+})();
+</script>
+
 </body>
 </html>
